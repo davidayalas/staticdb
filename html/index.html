@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="iso-8859-15" />
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet" />	
+	<style type="text/css">
+		.container-narrow {
+		  margin: 0 auto;
+		  max-width: 700px;
+		}
+
+		form{margin-top:3em;}
+	</style>
+	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	<script src="/js/sha1.js"></script>
+	<script src="/js/pbkdf2.js"></script>
+	<script>
+		var deep = 3;
+		var iter = 1000;
+		var length = 32;
+		var datadir = "/output/";
+		var number_csv_hash_fields = 2;
+		var hash_dir = false;
+		var statusid = "status";
+
+		var fieldTemplate = [
+			'<div class="form-group"',
+			'	<label for="col{{id}}">Col {{id}}:</label>',
+			'	<input type="text" class="form-control" id="col{{id}}" />',
+			'</div>'
+		].join("\n");
+
+		function request(path){
+			$.ajax({
+				url : path,
+		       	contentType: "text/plain;charset=iso-8859-15",
+
+			})
+			.done(function( data ) {
+			  data = data.split(",")
+			  $("#"+statusid+" .modal-body strong").html(data.join(" "));
+			  $("#"+statusid).modal()
+			})
+			.error(function(){
+			  $("#"+statusid+" .modal-body strong").html("No data");
+			  $("#"+statusid).modal()
+			});
+		}
+
+		$(document).ready(function(){
+
+			for(var i=0;i<number_csv_hash_fields;i++){
+				$(fieldTemplate.replace(/{{id}}/g,(i+1))).insertBefore($("#getInfo button"))
+			}
+
+			$("#getInfo").submit(function(){
+
+				var hash = "";
+
+				for(var i=0;i<number_csv_hash_fields;i++){
+					hash = hash + $("#col"+(i+1)).val();
+				}
+
+				var mypbkdf2 = new PBKDF2(hash+hash, hash+hash+hash, iter, length);
+								
+				var result_callback = function(key) {
+	    
+
+					if(hash_dir){
+						var folder = new PBKDF2(key.slice(0,deep), hash+hash+hash, iter, deep);
+						folder.deriveKey(function(percent_done){}, function(dkfolder){
+							path = datadir+dkfolder.slice(0,deep).split("").join("/")+"/"+key;
+							request(path);
+						});
+					}else{
+						request(datadir+key.slice(0,deep).split("").join("/")+"/"+key)
+					}
+
+				};
+
+
+				mypbkdf2.deriveKey(function(percent_done){}, result_callback);
+				return false;
+			});
+
+		});
+	</script>
+
+</head>
+
+<body>
+
+<div  class="container-narrow">
+
+	<h2>Query</h2>
+	<form id="getInfo">
+	  <button type="submit" class="btn btn-default">Submit</button>
+	</form>
+
+
+	<div id="status" class="modal fade">
+		<div class="modal-dialog" role="document">
+		    <div class="modal-content">
+		      	<div class="modal-header">
+		      		<h3>Result</h3>
+				</div>
+		      	<div class="modal-body">
+		      		<h2><strong></strong></h2>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+</div>
+
+</body>
+</html>
