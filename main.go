@@ -22,6 +22,11 @@ import (
 *  @param {string} output dir, string
 *  @param {*[]int} columns_hash, *[]int
 *  @param {*[]int} columns_content, *[]int
+*  @param {int} deep dirs structure
+*  @param {string} csv delimiter
+*  @param {int} number of iterations for pbkdf2
+*  @param {int} key length for pbkdf2
+*  @param {bool} if structure dir is derived with pbkdf2 too
  */
 func worker(lines chan string, wg *sync.WaitGroup, output *string, cols_hash *[]int, cols_content *[]int, deepdirs *int, delimiter *string, iter *int, keylength *int, hash_dir *bool) {
 
@@ -126,6 +131,11 @@ func readFile(strfile string, lines chan string, wg *sync.WaitGroup) {
 *  @param {string} output directory
 *  @param {*[]int} columns_hash
 *  @param {*[]int} columns_content
+*  @param {int} deep dirs structure
+*  @param {string} csv delimiter
+*  @param {int} number of iterations for pbkdf2
+*  @param {int} key length for pbkdf2
+*  @param {bool} if structure dir is derived with pbkdf2 too
  */
 func statify(strfile string, output *string, cols_hash *[]int, cols_content *[]int, deepdirs *int, delimiter *string, iter *int, keylength *int, hash_dir *bool) {
 
