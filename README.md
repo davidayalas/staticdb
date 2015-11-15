@@ -4,7 +4,7 @@ Sometimes you have a database with information of your users (**not sensible one
 
 In this cases, you could go to AWS, GCE or any other cloud, or you could create a system of hashed files from a CSV, from a combination of information that only your customer know (id + some password, e.g.) or known fixed information (selectable info to avoid free text in input boxes).
 
-# How does it works
+# How does it work
 
 We need to setup some properties:
 
