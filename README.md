@@ -34,25 +34,28 @@ This will generate our file structure and you will be able to call this data fro
 
 It is based entirely on http://anandam.name/pbkdf2/.
 
-You only have to setup some properties to derive the key you are searching in the same way that the Go process.
+You only have to setup the "config" object in the same way you did with config-yaml:
 
 	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 	<script src="/js/sha1.js"></script>
 	<script src="/js/pbkdf2.js"></script>
 	<script>
-		var deep = 3;
-		var iter = 1000;
-		var length = 32;
-		var datadir = "/output/";
-		var number_csv_hash_fields = 2;
-		var hash_dir = false;
-		var statusid = "status";
+
+		var config = {
+			deepdirs : 1,
+			pbkdf2_iterations : 1000,
+			pbkdf2_keylength : 32,
+			hash_dir : false,
+			datadir : "/output/",
+			number_csv_hash_fields : 2,
+			statusid : "status"	
+		}
 
 		var fieldTemplate = [
 			'<div class="form-group"',
 			'	<label for="col{{id}}">Col {{id}}:</label>',
-			'	<input type="text" class="form-control" id="col{{id}}" />',
+			'	<input type="text" class="form-control" id="col{{id}}" autocomplete="off" />',
 			'</div>'
 		].join("\n");
 
@@ -64,48 +67,52 @@ You only have to setup some properties to derive the key you are searching in th
 			})
 			.done(function( data ) {
 			  data = data.split(",")
-			  $("#"+statusid+" .modal-body strong").html(data.join(" "));
-			  $("#"+statusid).modal()
+			  $("#"+config.statusid+" .modal-body strong").html(data.join(" "));
 			})
 			.error(function(){
-			  $("#"+statusid+" .modal-body strong").html("No data");
-			  $("#"+statusid).modal()
+			  $("#"+config.statusid+" .modal-body strong").html("No data");
 			});
 		}
 
 		$(document).ready(function(){
 
-			for(var i=0;i<number_csv_hash_fields;i++){
+			for(var i=0;i<config.number_csv_hash_fields;i++){
 				$(fieldTemplate.replace(/{{id}}/g,(i+1))).insertBefore($("#getInfo button"))
 			}
 
+			$('.modal').on('hidden.bs.modal', function () {
+				$("#"+config.statusid+" .modal-body strong").html('<span class="glyphicon glyphicon-refresh spinning"></span>');
+			});
+
 			$("#getInfo").submit(function(){
 
+   			    $("#"+config.statusid).modal()
+				
 				var hash = "";
 
-				for(var i=0;i<number_csv_hash_fields;i++){
+				for(var i=0;i<config.number_csv_hash_fields;i++){
 					hash = hash + $("#col"+(i+1)).val();
 				}
 
-				var mypbkdf2 = new PBKDF2(hash+hash, hash+hash+hash, iter, length);
+				var filehash = new PBKDF2(hash+hash, hash+hash+hash, config.pbkdf2_iterations, config.pbkdf2_keylength);
 								
-				var result_callback = function(key) {
+				var filehash_callback = function(key) {
 	    
 
-					if(hash_dir){
-						var folder = new PBKDF2(key.slice(0,deep), hash+hash+hash, iter, deep);
+					if(config.hash_dir){
+						var folder = new PBKDF2(key.slice(0,config.deepdirs), hash+hash+hash, config.pbkdf2_iterations, config.deepdirs);
 						folder.deriveKey(function(percent_done){}, function(dkfolder){
-							path = datadir+dkfolder.slice(0,deep).split("").join("/")+"/"+key;
+							path = config.datadir+dkfolder.slice(0,config.deepdirs).split("").join("/")+"/"+key;
 							request(path);
 						});
 					}else{
-						request(datadir+key.slice(0,deep).split("").join("/")+"/"+key)
+						request(config.datadir+key.slice(0,config.deepdirs).split("").join("/")+"/"+key)
 					}
 
 				};
 
 
-				mypbkdf2.deriveKey(function(percent_done){}, result_callback);
+				filehash.deriveKey(function(percent_done){}, filehash_callback);
 				return false;
 			});
 
@@ -123,7 +130,7 @@ You only have to setup some properties to derive the key you are searching in th
 
 		$ go run http-server.go
 
-1. Go to http://localhost:3000
+1. Go to http://localhost
 
 	The sample is built from a csv with spanish localities. If you put "08" in "col1" and "135" in "col2" it will work. Imagine only you know that data. 
 

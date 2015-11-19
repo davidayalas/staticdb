@@ -10,24 +10,42 @@
 		}
 
 		form{margin-top:3em;}
+
+		.glyphicon.spinning {
+		    animation: spin 1s infinite linear;
+		    -webkit-animation: spin2 1s infinite linear;
+		}
+
+		@keyframes spin {
+		    from { transform: scale(1) rotate(0deg); }
+		    to { transform: scale(1) rotate(360deg); }
+		}
+
+		@-webkit-keyframes spin2 {
+		    from { -webkit-transform: rotate(0deg); }
+		    to { -webkit-transform: rotate(360deg); }
+		}		
 	</style>
 	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
 	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 	<script src="/js/sha1.js"></script>
 	<script src="/js/pbkdf2.js"></script>
 	<script>
-		var deep = 3;
-		var iter = 1000;
-		var length = 32;
-		var datadir = "/output/";
-		var number_csv_hash_fields = 2;
-		var hash_dir = false;
-		var statusid = "status";
+
+		var config = {
+			deepdirs : 1,
+			pbkdf2_iterations : 1000,
+			pbkdf2_keylength : 32,
+			hash_dir : false,
+			datadir : "/output/",
+			number_csv_hash_fields : 2,
+			statusid : "status"	
+		}
 
 		var fieldTemplate = [
 			'<div class="form-group"',
 			'	<label for="col{{id}}">Col {{id}}:</label>',
-			'	<input type="text" class="form-control" id="col{{id}}" />',
+			'	<input type="text" class="form-control" id="col{{id}}" autocomplete="off" />',
 			'</div>'
 		].join("\n");
 
@@ -39,48 +57,52 @@
 			})
 			.done(function( data ) {
 			  data = data.split(",")
-			  $("#"+statusid+" .modal-body strong").html(data.join(" "));
-			  $("#"+statusid).modal()
+			  $("#"+config.statusid+" .modal-body strong").html(data.join(" "));
 			})
 			.error(function(){
-			  $("#"+statusid+" .modal-body strong").html("No data");
-			  $("#"+statusid).modal()
+			  $("#"+config.statusid+" .modal-body strong").html("No data");
 			});
 		}
 
 		$(document).ready(function(){
 
-			for(var i=0;i<number_csv_hash_fields;i++){
+			for(var i=0;i<config.number_csv_hash_fields;i++){
 				$(fieldTemplate.replace(/{{id}}/g,(i+1))).insertBefore($("#getInfo button"))
 			}
 
+			$('.modal').on('hidden.bs.modal', function () {
+				$("#"+config.statusid+" .modal-body strong").html('<span class="glyphicon glyphicon-refresh spinning"></span>');
+			});
+
 			$("#getInfo").submit(function(){
 
+   			    $("#"+config.statusid).modal()
+				
 				var hash = "";
 
-				for(var i=0;i<number_csv_hash_fields;i++){
+				for(var i=0;i<config.number_csv_hash_fields;i++){
 					hash = hash + $("#col"+(i+1)).val();
 				}
 
-				var mypbkdf2 = new PBKDF2(hash+hash, hash+hash+hash, iter, length);
+				var filehash = new PBKDF2(hash+hash, hash+hash+hash, config.pbkdf2_iterations, config.pbkdf2_keylength);
 								
-				var result_callback = function(key) {
+				var filehash_callback = function(key) {
 	    
 
-					if(hash_dir){
-						var folder = new PBKDF2(key.slice(0,deep), hash+hash+hash, iter, deep);
+					if(config.hash_dir){
+						var folder = new PBKDF2(key.slice(0,config.deepdirs), hash+hash+hash, config.pbkdf2_iterations, config.deepdirs);
 						folder.deriveKey(function(percent_done){}, function(dkfolder){
-							path = datadir+dkfolder.slice(0,deep).split("").join("/")+"/"+key;
+							path = config.datadir+dkfolder.slice(0,config.deepdirs).split("").join("/")+"/"+key;
 							request(path);
 						});
 					}else{
-						request(datadir+key.slice(0,deep).split("").join("/")+"/"+key)
+						request(config.datadir+key.slice(0,config.deepdirs).split("").join("/")+"/"+key)
 					}
 
 				};
 
 
-				mypbkdf2.deriveKey(function(percent_done){}, result_callback);
+				filehash.deriveKey(function(percent_done){}, filehash_callback);
 				return false;
 			});
 
@@ -99,14 +121,14 @@
 	</form>
 
 
-	<div id="status" class="modal fade">
+	<div id="status" class="modal fade" tabindex="1">
 		<div class="modal-dialog" role="document">
 		    <div class="modal-content">
 		      	<div class="modal-header">
 		      		<h3>Result</h3>
 				</div>
 		      	<div class="modal-body">
-		      		<h2><strong></strong></h2>
+		      		<h2><strong><span class="glyphicon glyphicon-refresh spinning"></span></strong></h2>
 				</div>
 			</div>
 		</div>

@@ -14,76 +14,88 @@ import (
 	"sync"
 )
 
+type Config struct {
+	output          string
+	columns_hash    []int
+	columns_content []int
+	deep_dirs       int
+	delimiter       string
+	iter            int
+	keylength       int
+	hash_dir        bool
+	wg              sync.WaitGroup
+}
+
 /*
 *  Read lines of text in channel and processes hashing, content and creation of files
 *
 *  @param {chan string} lines, chan string
-*  @param {*sync.WaitGroup} wait group, *sync.WaitGroup
-*  @param {string} output dir, string
-*  @param {*[]int} columns_hash, *[]int
-*  @param {*[]int} columns_content, *[]int
-*  @param {int} deep dirs structure
-*  @param {string} csv delimiter
-*  @param {int} number of iterations for pbkdf2
-*  @param {int} key length for pbkdf2
-*  @param {bool} if structure dir is derived with pbkdf2 too
+*  @param {config Config} global config object
  */
-func worker(lines chan string, wg *sync.WaitGroup, output *string, cols_hash *[]int, cols_content *[]int, deepdirs *int, delimiter *string, iter *int, keylength *int, hash_dir *bool) {
+func worker(lines chan string, config *Config) {
 
 	var hash bytes.Buffer
 	var content bytes.Buffer
+	var dk []byte
+	var f *os.File
+	var cols []string
+	var i int
+	var salt []byte
+	var filename string
+	var folder string
+	var path string
 
 	//receives data in lines channel
 	for l := range lines {
 		hash.Reset()
 		content.Reset()
 
-		cols := strings.Split(l, *delimiter)
+		cols = strings.Split(l, config.delimiter)
 
 		//creates hash string
-		for _, v := range *cols_hash {
+		for _, v := range config.columns_hash {
 			if v <= len(cols) {
 				hash.WriteString(cols[v-1])
 			}
 		}
 
 		//creates content for future file: two models, from one column to the end (negative integer to select column from) o list of columns
-		if len(*cols_content) == 1 && (*cols_content)[0] < 0 {
-			for i := ((*cols_content)[0] * -1) - 1; i < len(cols); i++ {
+		if len(config.columns_content) == 1 && (config.columns_content)[0] < 0 {
+			for i = ((config.columns_content)[0] * -1) - 1; i < len(cols); i++ {
 				content.WriteString(cols[i] + ",")
 			}
 		} else {
-			for _, v := range *cols_content {
+			for _, v := range config.columns_content {
 				if v <= len(cols) && v >= 0 {
-					content.WriteString(cols[v-1] + ",")
+					content.WriteString(cols[v-1] + config.delimiter)
 				}
 			}
 		}
 
-		//creates derived key
-		salt := []byte(hash.String() + hash.String() + hash.String())
-		dk := pbkdf2.Key([]byte(hash.String()+hash.String()), salt, *iter, *keylength, sha1.New)
+		//creates derived key and writes content
+		salt = []byte(hash.String() + hash.String() + hash.String())
+		dk = pbkdf2.Key([]byte(hash.String()+hash.String()), salt, config.iter, config.keylength, sha1.New)
 
-		filename := hex.EncodeToString(dk)
-		folder := filename[0:*deepdirs]
+		filename = hex.EncodeToString(dk)
+		folder = filename[0:config.deep_dirs]
 
-		if *hash_dir {
-			dk2 := pbkdf2.Key([]byte(filename[0:*deepdirs]), salt, *iter, *deepdirs, sha1.New)
-			folder = string(hex.EncodeToString(dk2))
+		if config.hash_dir {
+			dk = pbkdf2.Key([]byte(filename[0:config.deep_dirs]), salt, config.iter, config.deep_dirs, sha1.New)
+			folder = string(hex.EncodeToString(dk))
 		}
 
-		path := strings.Join(strings.Split(folder, ""), "/")
-		createDir(*output + "/" + path)
+		path = strings.Join(strings.Split(folder, ""), "/")
+		createDir(config.output + "/" + path)
 
-		f, _ := os.Create(*output + "/" + path + "/" + filename)
+		f, _ = os.Create(config.output + "/" + path + "/" + filename)
 		defer f.Close()
 
 		f.WriteString(content.String())
-		wg.Done()
+		config.wg.Done()
 
 	}
 
-	wg.Done()
+	config.wg.Done()
 }
 
 /*
@@ -128,36 +140,27 @@ func readFile(strfile string, lines chan string, wg *sync.WaitGroup) {
 *  Function that start all the jobs: workers and readfile
 *
 *  @param {string} file to read
-*  @param {string} output directory
-*  @param {*[]int} columns_hash
-*  @param {*[]int} columns_content
-*  @param {int} deep dirs structure
-*  @param {string} csv delimiter
-*  @param {int} number of iterations for pbkdf2
-*  @param {int} key length for pbkdf2
-*  @param {bool} if structure dir is derived with pbkdf2 too
+*  @param {config Config} global config object
  */
-func statify(strfile string, output *string, cols_hash *[]int, cols_content *[]int, deepdirs *int, delimiter *string, iter *int, keylength *int, hash_dir *bool) {
+func statify(strfile string, config *Config) {
 
 	if _, err := os.Stat(strfile); err == nil {
 
-		if _, err := os.Stat(*output); err != nil {
-			createDir(*output)
+		if _, err := os.Stat(config.output); err != nil {
+			createDir(config.output)
 		}
 
 		lines := make(chan string)
 
-		var wg sync.WaitGroup
-
 		log.Println("starting " + viper.GetString("max_threads") + " threads")
 		for w := 1; w <= viper.GetInt("max_threads"); w++ {
-			wg.Add(1)
-			go worker(lines, &wg, output, cols_hash, cols_content, deepdirs, delimiter, iter, keylength, hash_dir)
+			config.wg.Add(1)
+			go worker(lines, config)
 		}
 
-		go readFile(strfile, lines, &wg)
+		go readFile(strfile, lines, &(config.wg))
 
-		wg.Wait()
+		config.wg.Wait()
 		log.Println("end")
 	}
 
@@ -194,35 +197,36 @@ func main() {
 		os.Exit(1)
 	}
 
+	config := Config{}
 	cols := strings.Split(viper.GetString("colums_hash"), ",")
-	cols_hash := arrStrToInt(&cols)
+	config.columns_hash = arrStrToInt(&cols)
 	cols = strings.Split(viper.GetString("columns_content"), ",")
-	cols_content := arrStrToInt(&cols)
-	output := viper.GetString("outputdir")
-	deepdirs := viper.GetInt("deepdirs")
-	delimiter := viper.GetString("delimiter")
-	iter := viper.GetInt("pbkdf2_iterations")
-	keylength := viper.GetInt("pbkdf2_keylength")
-	hash_dir := viper.GetBool("hash_dir")
+	config.columns_content = arrStrToInt(&cols)
+	config.output = viper.GetString("outputdir")
+	config.deep_dirs = viper.GetInt("deepdirs")
+	config.delimiter = viper.GetString("delimiter")
+	config.iter = viper.GetInt("pbkdf2_iterations")
+	config.keylength = viper.GetInt("pbkdf2_keylength")
+	config.hash_dir = viper.GetBool("hash_dir")
 
-	if output == "" {
-		output = "./output/"
+	if config.output == "" {
+		config.output = "./output/"
 	}
 
-	if iter == 0 {
-		iter = 100
+	if config.iter == 0 {
+		config.iter = 100
 	}
 
-	if keylength == 0 {
-		keylength = 32
+	if config.keylength == 0 {
+		config.keylength = 32
 	}
 
-	if delimiter == "" {
-		delimiter = ";"
+	if config.delimiter == "" {
+		config.delimiter = ";"
 	}
 
-	log.Println("deleting " + output)
-	os.RemoveAll(output)
+	log.Println("deleting " + config.output)
+	os.RemoveAll(config.output)
 
-	statify(viper.GetString("filename"), &output, &cols_hash, &cols_content, &deepdirs, &delimiter, &iter, &keylength, &hash_dir)
+	statify(viper.GetString("filename"), &config)
 }

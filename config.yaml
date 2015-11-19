@@ -1,11 +1,12 @@
 filename: ./data/municipios.csv
 delimiter: ;
 outputdir: ./html/output/
-deepdirs: 3
-max_threads: 150
+deepdirs: 1
+max_threads: 300
 pbkdf2_iterations: 1000
 pbkdf2_keylength: 32
 hash_dir: false
 
+
 colums_hash: 1,2
-columns_content: 4
+columns_content: -4

@@ -1,2 +1,4 @@
 html/output
 log.txt
+data/test.csv
+bin/*
