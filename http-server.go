@@ -17,7 +17,7 @@ func main() {
 	}
 
 	if *folder == "" {
-		*port = "./html"
+		*folder = "./html"
 	}
 
 	http.Handle("/", http.FileServer(http.Dir(*folder)))
