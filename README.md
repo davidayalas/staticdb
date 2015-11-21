@@ -15,7 +15,7 @@ We need to setup some properties:
 		max_threads: 150 --> max workers to deal with file creation
 		pbkdf2_iterations: 1000 --> the derived key is using pbkdf2 algorith, then, we need some iterations 
 		pbkdf2_keylength: 32 
-		hash_dir: false --> if you want to apply a pbkdf2 derivation to the folder tree created from N chars of filenames
+		hash_dir: false --> if you want to apply a pbkdf2 derivation to the folder tree created from the first N chars of filenames
 
 		colums_hash: 1,2 --> colums from the csv to perform the hashing
 		columns_content: 3,4 --> columns from the csv to put in the hashed file. It could be a negative integer, then, all the columns from the positive integer will be added to the content of the hashed file. E.g. -3 will add all columns from the 3rd to the end.
@@ -45,7 +45,12 @@ This will generate our file structure and you will be able to call this data fro
 
 1. Go to [http://localhost](http://localhost)
 
-	The sample is built from a csv with spanish localities. If you put "08" in "col1" and "135" in "col2" it will work. Imagine only you know that data. 
+	- There are two samples:
+	
+		- Default config.yaml: the sample is built from a csv with spanish localities. If you put "08" in "col1" and "135" in "col2" it will work. 
+		- dvds.yaml: the sample is built from a csv from http://www.hometheaterinfo.com/dvdlist.htm. The keys are "id" and "year" of the movie. Try "032429216816" and "2013" to get "World War Z"
+
+	Imagine only you know that data. 
 
 # HTML
 
