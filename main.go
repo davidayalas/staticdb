@@ -1,19 +1,25 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha1"
+	"encoding/csv"
 	"encoding/hex"
+	"flag"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/pbkdf2"
+	"io"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
+/*
+*	Struct to hold configuration parameters
+ */
 type Config struct {
 	output          string
 	columns_hash    []int
@@ -32,25 +38,26 @@ type Config struct {
 *  @param {chan string} lines, chan string
 *  @param {config Config} global config object
  */
-func worker(lines chan string, config *Config) {
+func worker(lines chan []string, config *Config) {
 
 	var hash bytes.Buffer
 	var content bytes.Buffer
 	var dk []byte
 	var f *os.File
-	var cols []string
+	//var cols []string
 	var i int
 	var salt []byte
 	var filename string
 	var folder string
 	var path string
+	var err error
 
 	//receives data in lines channel
-	for l := range lines {
+	for cols := range lines {
 		hash.Reset()
 		content.Reset()
 
-		cols = strings.Split(l, config.delimiter)
+		//cols = strings.Split(l, config.delimiter)
 
 		//creates hash string
 		for _, v := range config.columns_hash {
@@ -87,10 +94,12 @@ func worker(lines chan string, config *Config) {
 		path = strings.Join(strings.Split(folder, ""), "/")
 		createDir(config.output + "/" + path)
 
-		f, _ = os.Create(config.output + "/" + path + "/" + filename)
-		defer f.Close()
-
+		f, err = os.Create(config.output + "/" + path + "/" + filename)
+		if err != nil {
+			log.Println(err)
+		}
 		f.WriteString(content.String())
+		f.Close()
 		config.wg.Done()
 
 	}
@@ -105,31 +114,45 @@ func worker(lines chan string, config *Config) {
 *
  */
 func createDir(path string) {
-	os.MkdirAll(path, 0644)
+	os.MkdirAll(path, 0777)
 }
 
 /*
 *  Reads csv to transform in flat files database
 *
 *  @param {string}file to read
-*  @param {chan string} channel
-*  @param {*sync.WaitGroup} wait group
+*  @param {chan []string} channel
+*  @param {Config} config
  */
-func readFile(strfile string, lines chan string, wg *sync.WaitGroup) {
+func readFile(strfile string, lines chan []string, config *Config) {
 
 	if file, err := os.Open(strfile); err == nil {
 
-		log.Println("reading file")
+		log.Println("reading file " + strfile)
 		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			wg.Add(1)
-			lines <- scanner.Text()
+
+		reader := csv.NewReader(file)
+		r, _ := utf8.DecodeRuneInString(config.delimiter)
+		reader.Comma = r
+
+		cont := 1
+		for {
+
+			record, err := reader.Read()
+
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				log.Println("Error:", err)
+				log.Println("Review your delimiter setup at '" + config.delimiter + "'")
+				break
+			}
+			config.wg.Add(1)
+			lines <- record
+			cont++
 		}
+		log.Println("Processed lines: " + strconv.Itoa(cont))
 		close(lines)
-		if err = scanner.Err(); err != nil {
-			log.Fatal(err)
-		}
 
 	} else {
 		log.Fatal(err)
@@ -150,7 +173,7 @@ func statify(strfile string, config *Config) {
 			createDir(config.output)
 		}
 
-		lines := make(chan string)
+		lines := make(chan []string)
 
 		log.Println("starting " + viper.GetString("max_threads") + " threads")
 		for w := 1; w <= viper.GetInt("max_threads"); w++ {
@@ -158,9 +181,10 @@ func statify(strfile string, config *Config) {
 			go worker(lines, config)
 		}
 
-		go readFile(strfile, lines, &(config.wg))
+		go readFile(strfile, lines, config)
 
 		config.wg.Wait()
+
 		log.Println("end")
 	}
 
@@ -169,8 +193,8 @@ func statify(strfile string, config *Config) {
 /*
 *  Cast array elements from string to int. Comes from yaml properties
 *
-*  @param arr pointer to array of strings
-*  @return array of integers
+*  @param {[]string} array of strings
+*  @return {[]int}
  */
 func arrStrToInt(arr *[]string) []int {
 
@@ -184,14 +208,54 @@ func arrStrToInt(arr *[]string) []int {
 	return cparr
 }
 
+/*
+*  Gets Filename and Path from input string
+*
+*  @param {string} path
+*  @return {string string}
+ */
+func GetFileNameAndPath(path string) (string, string) {
+	var name string
+	if strings.Index(path, "\\") > -1 {
+		name = path[strings.LastIndex(path, "\\")+1:]
+		path = path[:strings.LastIndex(path, "\\")]
+	} else {
+		name = path[strings.LastIndex(path, "/")+1:]
+		path = path[:strings.LastIndex(path, "/")+1]
+	}
+
+	name = strings.Replace(name, ".exe", "", -1)
+	name = strings.Replace(name, ".yaml", "", -1)
+
+	if path == "" {
+		path = "./"
+	}
+
+	return path, name
+}
+
+/*
+*  Start the process
+*
+ */
 func main() {
 
 	log.SetOutput(os.Stdout)
 
-	viper.SetConfigName("config")
-	viper.AddConfigPath("./")
+	config_file := flag.String("config", "", "")
+	flag.Parse()
+
+	default_config_file := "config"
+	default_config_path := "./"
+	if *config_file != "" {
+		default_config_path, default_config_file = GetFileNameAndPath(*config_file)
+	}
+
+	viper.SetConfigName(default_config_file)
+	viper.AddConfigPath(default_config_path)
 
 	err := viper.ReadInConfig()
+
 	if err != nil {
 		log.Println("missing config file")
 		os.Exit(1)

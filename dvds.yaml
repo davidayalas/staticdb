@@ -1,0 +1,11 @@
+filename: ./data/dvd_csv.txt
+delimiter: ","
+outputdir: ./html/output/
+deepdirs: 3
+max_threads: 100
+pbkdf2_iterations: 1
+pbkdf2_keylength: 32
+hash_dir: false
+
+colums_hash: 12,9
+columns_content: -1

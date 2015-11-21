@@ -9,7 +9,7 @@ In this cases, you could go to AWS, GCE or any other cloud, or you could create 
 We need to setup some properties:
 
 		filename: ./data/yourdatabase.csv
-		delimiter: ;
+		delimiter: ; --> if the value is comma ',' better wrap it with quotes
 		outputdir: ./html/output
 		deepdirs: 3 --> this will create a structure of directories of N deep
 		max_threads: 150 --> max workers to deal with file creation
@@ -18,7 +18,7 @@ We need to setup some properties:
 		hash_dir: false --> if you want to apply a pbkdf2 derivation to the folder tree created from N chars of filenames
 
 		colums_hash: 1,2 --> colums from the csv to perform the hashing
-		columns_content: 3,4 --> columns from the csv to put in the hashed file
+		columns_content: 3,4 --> columns from the csv to put in the hashed file. It could be a negative integer, then, all the columns from the positive integer will be added to the content of the hashed file. E.g. -3 will add all columns from the 3rd to the end.
 
 
 # Build or run
@@ -27,8 +27,25 @@ Build or run the code to try it:
 
 		$ go run main.go
 
+You can pass a config file adding a flag
+
+		$ go run main.go -config=youconfigfile.yaml
 
 This will generate our file structure and you will be able to call this data from your html client doing the same hashing process that we do with the process.
+
+# Test it
+
+1. Run main program
+		
+		$ go run main.go
+
+1. When finish, run http-server
+
+		$ go run http-server.go
+
+1. Go to [http://localhost](http://localhost)
+
+	The sample is built from a csv with spanish localities. If you put "08" in "col1" and "135" in "col2" it will work. Imagine only you know that data. 
 
 # HTML
 
@@ -44,18 +61,18 @@ You only have to setup the "config" object in the same way you did with config-y
 
 		var config = {
 			deepdirs : 1,
-			pbkdf2_iterations : 1000,
+			pbkdf2_iterations : 1,
 			pbkdf2_keylength : 32,
 			hash_dir : false,
 			datadir : "/output/",
-			number_csv_hash_fields : 2,
+			fields_to_query : ["Col 1","Col 2"],
 			statusid : "status"	
 		}
 
 		var fieldTemplate = [
 			'<div class="form-group"',
-			'	<label for="col{{id}}">Col {{id}}:</label>',
-			'	<input type="text" class="form-control" id="col{{id}}" autocomplete="off" />',
+			'	<label for="{{id}}" id="l_{{id}}"><span>{{id}}</span>:</label>',
+			'	<input type="text" class="form-control" id="{{id}}" autocomplete="off" />',
 			'</div>'
 		].join("\n");
 
@@ -75,9 +92,12 @@ You only have to setup the "config" object in the same way you did with config-y
 		}
 
 		$(document).ready(function(){
-
-			for(var i=0;i<config.number_csv_hash_fields;i++){
-				$(fieldTemplate.replace(/{{id}}/g,(i+1))).insertBefore($("#getInfo button"))
+			var aux="";
+			for(var i=0;i<config.fields_to_query.length;i++){
+				aux = config.fields_to_query[i].replace(" ","_")
+				$(fieldTemplate.replace(/{{id}}/g,aux)).insertBefore($("#getInfo button"));
+				aux=$("#l_"+aux+ " span").html();
+				$("#l_"+aux + " span").html(aux.replace("_", " "));
 			}
 
 			$('.modal').on('hidden.bs.modal', function () {
@@ -90,8 +110,8 @@ You only have to setup the "config" object in the same way you did with config-y
 				
 				var hash = "";
 
-				for(var i=0;i<config.number_csv_hash_fields;i++){
-					hash = hash + $("#col"+(i+1)).val();
+				for(var i=0;i<config.fields_to_query.length;i++){
+					hash = hash + $("#"+(config.fields_to_query[i].replace(" ","_"))).val();
 				}
 
 				var filehash = new PBKDF2(hash+hash, hash+hash+hash, config.pbkdf2_iterations, config.pbkdf2_keylength);
@@ -119,18 +139,21 @@ You only have to setup the "config" object in the same way you did with config-y
 		});
 	</script>
 
+# Benchmark
 
-# Example
+* VirtualBox VM Ubuntu 15.04, 1GB RAM, 1vCPU
 
-1. Run main program
-		
-		$ go run main.go
+* Processing:
+	- /data/municipios.csv (8.119 rows)
+		- 1 deep dir
+		- only 1 pbkdf2 iteration
+		- 300 threads
 
-1. When finish, run http-server
+		It takes 2'' aprox.
 
-		$ go run http-server.go
+	- /data/dvd_csv.txt (282.404 rows)
+		- 3 deep dir
+		- only 1 pbkdf2 iteration
+		- 500 threads
 
-1. Go to http://localhost
-
-	The sample is built from a csv with spanish localities. If you put "08" in "col1" and "135" in "col2" it will work. Imagine only you know that data. 
-
+		It takes 3' 40'' aprox.

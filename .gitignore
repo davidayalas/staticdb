@@ -1,4 +1,4 @@
 html/output
 log.txt
-data/test.csv
+data/*test*
 bin/*
