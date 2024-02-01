@@ -2,3 +2,4 @@ html/output
 log.txt
 data/*test*
 bin/*
+go.sum
