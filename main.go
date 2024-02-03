@@ -2,12 +2,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
 	"flag"
-	"github.com/spf13/viper"
-	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"log"
 	"os"
@@ -15,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/spf13/viper"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 /*
@@ -28,8 +29,8 @@ type Config struct {
 	delimiter       string
 	iter            int
 	keylength       int
-	hash_dir        bool
-	wg              sync.WaitGroup
+	//hash_dir        bool
+	wg sync.WaitGroup
 }
 
 /*
@@ -80,16 +81,17 @@ func worker(lines chan []string, config *Config) {
 		}
 
 		//creates derived key and writes content
-		salt = []byte(hash.String() + hash.String() + hash.String())
-		dk = pbkdf2.Key([]byte(hash.String()+hash.String()), salt, config.iter, config.keylength, sha1.New)
+		//salt = []byte(hash.String() + hash.String() + hash.String())
+		salt = []byte(hash.String())
+		dk = pbkdf2.Key([]byte(hash.String()), salt, config.iter, config.keylength, sha256.New)
 
 		filename = hex.EncodeToString(dk)
 		folder = filename[0:config.deep_dirs]
 
-		if config.hash_dir {
-			dk = pbkdf2.Key([]byte(filename[0:config.deep_dirs]), salt, config.iter, config.deep_dirs, sha1.New)
+		/*if config.hash_dir {
+			dk = pbkdf2.Key([]byte(filename[0:config.deep_dirs]), salt, config.iter, config.deep_dirs, sha256.New)
 			folder = string(hex.EncodeToString(dk))
-		}
+		}*/
 
 		path = strings.Join(strings.Split(folder, ""), "/")
 		createDir(config.output + "/" + path)
@@ -271,7 +273,7 @@ func main() {
 	config.delimiter = viper.GetString("delimiter")
 	config.iter = viper.GetInt("pbkdf2_iterations")
 	config.keylength = viper.GetInt("pbkdf2_keylength")
-	config.hash_dir = viper.GetBool("hash_dir")
+	//config.hash_dir = viper.GetBool("hash_dir")
 
 	if config.output == "" {
 		config.output = "./output/"
