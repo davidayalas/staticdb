@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="iso-8859-15" />
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet" />	
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.1/css/bootstrap.min.css" integrity="sha384-VCmXjywReHh4PwowAiWNagnWcLhlEJLA5buUprzK8rxFgeH0kww/aWY76TfkUoSX" crossorigin="anonymous">
 	<style type="text/css">
 		.container-narrow {
 		  margin: 0 auto;
@@ -16,6 +16,24 @@
 		    -webkit-animation: spin2 1s infinite linear;
 		}
 
+		.modal .dataContent{
+			padding: 1em;
+		}
+
+		.container-narrow {
+			margin: 0 auto;
+			max-width: 700px;
+		}
+
+		.modal {
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+		}		
+
+		form { margin-top: 3em; }
+
 		@keyframes spin {
 		    from { transform: scale(1) rotate(0deg); }
 		    to { transform: scale(1) rotate(360deg); }
@@ -26,91 +44,6 @@
 		    to { -webkit-transform: rotate(360deg); }
 		}		
 	</style>
-	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-	<script src="/js/sha1.js"></script>
-	<script src="/js/pbkdf2.js"></script>
-	<script>
-
-		var config = {
-			deepdirs : 3,
-			pbkdf2_iterations : 1,
-			pbkdf2_keylength : 32,
-			hash_dir : false,
-			datadir : "/output/",
-			fields_to_query : ["Col 1","Col 2"],
-			statusid : "status"	
-		}
-
-		var fieldTemplate = [
-			'<div class="form-group"',
-			'	<label for="{{id}}" id="l_{{id}}"><span>{{id}}</span>:</label>',
-			'	<input type="text" class="form-control" id="{{id}}" autocomplete="off" />',
-			'</div>'
-		].join("\n");
-
-		function request(path){
-			$.ajax({
-				url : path,
-		       	contentType: "text/plain;charset=iso-8859-15",
-
-			})
-			.done(function( data ) {
-			  data = data.split(",")
-			  $("#"+config.statusid+" .modal-body strong").html(data.join(" "));
-			})
-			.error(function(){
-			  $("#"+config.statusid+" .modal-body strong").html("No data");
-			});
-		}
-
-		$(document).ready(function(){
-			var aux="";
-			for(var i=0;i<config.fields_to_query.length;i++){
-				aux = config.fields_to_query[i].replace(" ","_")
-				$(fieldTemplate.replace(/{{id}}/g,aux)).insertBefore($("#getInfo button"));
-				aux=$("#l_"+aux+ " span").html();
-				$("#l_"+aux + " span").html(aux.replace("_", " "));
-			}
-
-			$('.modal').on('hidden.bs.modal', function () {
-				$("#"+config.statusid+" .modal-body strong").html('<span class="glyphicon glyphicon-refresh spinning"></span>');
-			});
-
-			$("#getInfo").submit(function(){
-
-   			    $("#"+config.statusid).modal()
-				
-				var hash = "";
-
-				for(var i=0;i<config.fields_to_query.length;i++){
-					hash = hash + $("#"+(config.fields_to_query[i].replace(" ","_"))).val();
-				}
-
-				var filehash = new PBKDF2(hash+hash, hash+hash+hash, config.pbkdf2_iterations, config.pbkdf2_keylength);
-								
-				var filehash_callback = function(key) {
-	    
-
-					if(config.hash_dir){
-						var folder = new PBKDF2(key.slice(0,config.deepdirs), hash+hash+hash, config.pbkdf2_iterations, config.deepdirs);
-						folder.deriveKey(function(percent_done){}, function(dkfolder){
-							path = config.datadir+dkfolder.slice(0,config.deepdirs).split("").join("/")+"/"+key;
-							request(path);
-						});
-					}else{
-						request(config.datadir+key.slice(0,config.deepdirs).split("").join("/")+"/"+key)
-					}
-
-				};
-
-
-				filehash.deriveKey(function(percent_done){}, filehash_callback);
-				return false;
-			});
-
-		});
-	</script>
 
 </head>
 
@@ -120,25 +53,134 @@
 
 	<h2>Query</h2>
 	<form id="getInfo">
-	  <button type="submit" class="btn btn-default">Submit</button>
+		<div class="form-group">
+			<label for="field1" ><span>Field 1</span></label>
+			<input type="text" class="form-control" id="field1" autocomplete="off" />
+		</div>
+		<div class="form-group">
+			<label for="field2" ><span>Field 2</span></label>
+			<input type="text" class="form-control" id="field2" autocomplete="off" />
+		</div>
+	  <button type="submit" class="btn btn-primary">Submit</button>
 	</form>
 
-
-	<div id="status" class="modal fade" tabindex="1">
+	<!-- Modal -->
+	<div class="modal fade" id="status" tabindex="-1" aria-modal="true" role="dialog">
 		<div class="modal-dialog" role="document">
-		    <div class="modal-content">
-		      	<div class="modal-header">
-		      		<h3>Result</h3>
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="user"></h5>
+					<button type="button" class="close" aria-label="Close"  onclick="closeModal()">
+						<span aria-hidden="true">×</span>
+					</button>
 				</div>
-		      	<div class="modal-body">
-		      		<h2><strong><span class="glyphicon glyphicon-refresh spinning"></span></strong></h2>
+				<div id="dataContent" class="dataContent">
+				
 				</div>
 			</div>
 		</div>
 	</div>
-
+	<div class="modal-backdrop fade show" id="backdrop"  style="display: none;"></div>
 
 </div>
 
 </body>
+
+<script>
+
+	const config = {
+		deepdirs : 3,
+		pbkdf2_iterations : 1000,
+		pbkdf2_keylength : 32,
+		datadir : "/output/",
+		statusid : "status"	
+	}
+
+	const modal = document.getElementById("status");
+	
+	document.addEventListener("keydown", function(event) {
+		if (event.key === "Escape" && modal.style.display === "block") {
+			closeModal();
+		}
+	});
+
+    function openModal() {
+        document.getElementById("backdrop").style.display = "block"
+        modal.style.display = "flex"
+        modal.classList.add("show")
+    }
+    function closeModal() {
+        document.getElementById("backdrop").style.display = "none"
+        modal.style.display = "none"
+        modal.classList.remove("show")
+    }
+
+	async function request(path) {
+		const response = await fetch(config.datadir + path);
+		if (!response.ok) {
+			return null;
+		}
+		const info = await response.text();
+		return info;
+	}
+
+	async function deriveKeyFromPassword(identifier, password) {
+		const encoder = new TextEncoder();
+		const keyMaterial = await window.crypto.subtle.importKey(
+			"raw",
+			encoder.encode(identifier+password),
+			{ name: "PBKDF2" },
+			false,
+			["deriveBits", "deriveKey"]
+		);
+
+		const salt = encoder.encode(identifier+password);
+		const derivedKey = await window.crypto.subtle.deriveKey(
+			{
+				name: "PBKDF2",
+				salt: salt,
+				iterations: config.pbkdf2_iterations,
+				hash: "SHA-256",
+			},
+			keyMaterial,
+			{ name: "AES-GCM", length: 256 },
+			true,
+			["encrypt", "decrypt"]
+		);
+
+		const hashBuffer = await window.crypto.subtle.exportKey("raw", derivedKey);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const hash = hashArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+		return hash;
+	}
+
+	document.getElementById("getInfo").addEventListener("submit", async function(e){
+		event.preventDefault();
+
+		const user = document.getElementById("field1").value;
+		let path = await deriveKeyFromPassword(user, document.getElementById("field2").value);
+
+		let cont=1;	
+		let newPath = [];
+		for (let i = 0; i < config.deepdirs; i++) {
+			newPath.push(path.slice(i,i+1));
+			newPath.push("/");
+		}
+		path = newPath.concat(path).join("");
+		const data = await request(path);
+		
+		if(data!==null){
+			document.getElementById("user").innerHTML = user;
+			document.getElementById("dataContent").innerHTML = data;
+			openModal();
+		}else{
+			document.getElementById("user").innerHTML = "";
+			document.getElementById("dataContent").innerHTML = "Credencials no vàlides";
+			openModal();
+		}
+	});
+
+</script>
+
 </html>
